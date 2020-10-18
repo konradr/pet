@@ -201,6 +201,8 @@ def main():
                         help="Log every X updates steps.")
     parser.add_argument("--no_cuda", action='store_true',
                         help="Avoid using CUDA when available")
+    parser.add_argument("--tpu", action="store_true",
+                        help="Use tpu")
     parser.add_argument('--overwrite_output_dir', action='store_true',
                         help="Overwrite the content of the output directory")
     parser.add_argument('--seed', type=int, default=42,
@@ -222,8 +224,16 @@ def main():
         raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
 
     # Setup CUDA, GPU & distributed training
-    args.device = "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
-    args.n_gpu = torch.cuda.device_count()
+    if (torch.cuda.is_available() and not args.no_cuda and not args.tpu):
+        args.device = "cuda"  
+    elif (args.tpu):
+        import torch_xla
+        import torch_xla.core.xla_model as xm
+        args.device = xm.xla_device()
+    else:
+        args.device = "cpu"
+    
+    args.n_gpu = torch.cuda.device_count() if not args.tpu else xm.get_xla_supported_devices(devkind=["TPU"])
 
     # Prepare task
     args.task_name = args.task_name.lower()
